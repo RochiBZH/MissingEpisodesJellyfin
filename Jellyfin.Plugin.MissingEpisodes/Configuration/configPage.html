@@ -573,7 +573,7 @@
    tracked-out label). Search-all button is a strong indigo CTA pinned
    to the right. Drops the wrapping card chrome. */
 #missingEpisodesPage[data-me-style="revamp"] .me-filters {
-    display: grid !important;
+    display: grid;
     grid-template-columns: auto auto 1fr auto auto !important;
     align-items: end !important;
     gap: 14px 18px !important;
@@ -593,10 +593,12 @@
     margin-top: 16px !important;
 }
 #missingEpisodesPage[data-me-style="revamp"] #meScopeSeg::before { content: "Scope"; }
+#missingEpisodesPage[data-me-style="revamp"] #meViewSeg::before { content: "View"; }
 #missingEpisodesPage[data-me-style="revamp"] #meTypeSeg::before  { content: "Type"; }
 #missingEpisodesPage[data-me-style="revamp"] .me-search::before  { content: "Search"; }
 #missingEpisodesPage[data-me-style="revamp"] #meSortSeg::before  { content: "Sort"; }
 #missingEpisodesPage[data-me-style="revamp"] #meScopeSeg::before,
+#missingEpisodesPage[data-me-style="revamp"] #meViewSeg::before,
 #missingEpisodesPage[data-me-style="revamp"] #meTypeSeg::before,
 #missingEpisodesPage[data-me-style="revamp"] .me-search::before,
 #missingEpisodesPage[data-me-style="revamp"] #meSortSeg::before {
@@ -700,7 +702,7 @@
    underneath in display weight. Dramatic hover with scale + accent
    glow ring + tilt. */
 #missingEpisodesPage[data-me-style="revamp"] .me-grid {
-    display: grid !important;
+    display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
     gap: 22px 18px !important;
     background: transparent !important;
@@ -1701,7 +1703,12 @@
       </div>
       <div class="me-history-body" id="meHistoryBody"></div>
     </div>
-
+    <div class="me-filters" id="meView" style="display:none;">
+        <div class="me-segment" id="meViewSeg">
+                <button type="button" data-v="Standard" class="active">Standard</button>
+                <button type="button" data-v="Calendar">Calendar</button>
+        </div>
+    </div>
     <div class="me-filters" id="meFilters" style="display:none;">
       <div class="me-segment" id="meScopeSeg">
         <button type="button" data-v="active" class="active">Active</button>
@@ -1730,6 +1737,8 @@
     </div>
 
     <div id="meGrid" class="me-grid"></div>
+
+    <div id="meCalendar"></div>
 
     <div id="meEmpty" class="me-empty" style="display:none;">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 2v4M17 2v4M2 10h20"/></svg>
@@ -1821,7 +1830,7 @@
     } catch (e) { /* swallow — toggle is non-critical */ }
 
     var state = { result: null, filtered: [], current: null, cfg: null,
-                  sort: 'count', query: '', type: 'all', scope: 'active',
+                  sort: 'count', query: '', type: 'all', scope: 'active', view : 'Standard',
                   cfgOpen: false, pollId: null };
 
     function formatBytes(n) {
@@ -2122,10 +2131,17 @@
             }
             sk.innerHTML = cards;
             sk.style.display = 'grid';
-            $('#meGrid').style.display = 'none';
+            $('#meCalendar').style.display = 'none'; 
+            $('#meGrid').style.display = 'none'; 
+            $('#meFilters').style.display = 'none';   
         } else {
             sk.style.display = 'none';
-            $('#meGrid').style.display = 'grid';
+            if(state.view == 'Standard'){
+                $('#meGrid').style.display = 'grid';  
+                $('#meFilters').style.display = '';   
+            }else if(state.view == 'Calendar' ){
+                $('#meCalendar').style.display = 'grid';
+            }
         }
     }
 
@@ -2177,7 +2193,9 @@
     function showEmpty() {
         $('#meEmpty').style.display = 'block';
         $('#meGrid').innerHTML = '';
+        $('#meCalendar').innerHTML = '';
         $('#meFilters').style.display = 'none';
+        $('#meView').style.display = 'none';
     }
 
     function render() {
@@ -2186,6 +2204,7 @@
         $('#meEmpty').style.display = 'none';
         var hasAny = (r.Series && r.Series.length) || (r.IgnoredSeries && r.IgnoredSeries.length);
         $('#meFilters').style.display = hasAny ? 'flex' : 'none';
+        $('#meView').style.display = hasAny ? 'flex' : 'none';
         $('#meStatShows').textContent = r.Series.length;
         $('#meStatMissing').textContent = r.TotalMissing;
         $('#meStatSource').textContent = r.Source === 'jellyfin' ? 'Jellyfin' : 'Sonarr';
@@ -2194,7 +2213,7 @@
     }
 
     function applyFilters() {
-        if (!state.result) return;
+        if (!state.result || state.view != "Standard") return;
         var q = state.query.trim().toLowerCase();
         var typeFilter = state.type;
         var source = state.scope === 'ignored'
@@ -2286,6 +2305,155 @@
         });
     }
 
+    function getEpisodesWithDate(seriesList) {
+    var out = [];
+    (seriesList || []).forEach(function (s) {
+        (s.Missing || []).forEach(function (m) {
+            if (!m.AirDateUtc) return;              
+            var d = airDateLocal(m.AirDateUtc);
+            if (!d) return;                        
+            out.push({
+                series: s,
+                SeriesTitle: s.Title,
+                SeasonNumber: m.SeasonNumber,
+                EpisodeNumber: m.EpisodeNumber,
+                Title: m.Title,
+                AirDateUtc: m.AirDateUtc,
+                date: d
+            });
+        });
+    });
+    out.sort(function (a, b) { return a.date - b.date; });
+    return out;
+}
+
+
+function airDateLocal(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+  
+function addDays(d, n) {
+    var r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    r.setDate(r.getDate() + n);
+    return r;
+}
+
+function groupUpcoming(episodes, now) {
+    now = now || new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var tomorrow = addDays(today, 1);
+    var dow = (today.getDay() + 6) % 7;            
+    var nextWeekStart = addDays(today, 7 - dow);   
+    var weekAfterStart = addDays(nextWeekStart, 7); 
+
+    var groups = { released: [], tomorrow: [], week: [], next: [], months: [] };
+    var monthIndex = {};
+
+    episodes.forEach(function (ep) {
+        var t = ep.date.getTime();
+        if (t < tomorrow.getTime()) groups.released.push(ep);
+        else if (t === tomorrow.getTime()) groups.tomorrow.push(ep);
+        else if (t < nextWeekStart.getTime()) groups.week.push(ep);
+        else if (t < weekAfterStart.getTime()) groups.next.push(ep);
+        else {
+            var key = ep.date.getFullYear() + '-' + pad2(ep.date.getMonth() + 1);
+            if (!monthIndex[key]) {
+                var label = ep.date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                label = label.charAt(0).toUpperCase() + label.slice(1); 
+                monthIndex[key] = { key: 'month-' + key, label: label, list: [] };
+                groups.months.push(monthIndex[key]);
+            }
+            monthIndex[key].list.push(ep);
+        }
+    });
+
+    groups.released.reverse();
+    return groups;
+}
+
+var calendarEpisodes = [];
+
+function pad2(n) { return n < 10 ? '0' + n : String(n); }
+
+function renderCalendar() {
+    var c = $('#meCalendar');
+    if (!state.result) return;
+
+    var episodes = getEpisodesWithDate(state.result.Series);
+    var groups = groupUpcoming(episodes);
+    calendarEpisodes = [];
+
+    var sections = [
+        { key: 'released', label: 'Already released', list: groups.released },
+        { key: 'tomorrow', label: 'Tomorrow',         list: groups.tomorrow },
+        { key: 'week',     label: 'This week',        list: groups.week },
+        { key: 'next',     label: 'Next week',        list: groups.next }
+    ].concat(groups.months.map(function (m) {
+        return { key: m.key, label: m.label, list: m.list };
+    }));
+
+    var html = sections.map(function (sec) {
+        var list = sec.list;
+        if (!list.length) return '';                
+
+        var cards = list.map(function (ep) {
+            var idx = calendarEpisodes.push(ep) - 1;
+            var s = ep.series;
+
+            var posterUrl = resolveImage(s.PosterUrl, 'Primary');
+            var posterData = posterUrl ? ' data-bg="' + escapeHtml(posterUrl) + '"' : '';
+            var poster = posterUrl
+                ? '<div class="me-poster"' + posterData + '></div>'
+                : '<div class="me-poster"><div class="me-ph">' + escapeHtml(s.Title) + '</div></div>';
+
+            var code = 'S' + pad2(ep.SeasonNumber) + 'E' + pad2(ep.EpisodeNumber);
+            var dateTxt = ep.date.toLocaleDateString('en-US', {
+                weekday: 'short', day: 'numeric', month: 'short'
+            });
+            var badgeStyle = sec.key === 'released' ? ' style="background:var(--accent-2);"' : '';
+            var badge = '<span class="me-badge"' + badgeStyle + '>' + escapeHtml(dateTxt) + '</span>';
+
+            var titleTag = s.SeriesType === 'anime'
+                ? '<span class="me-type-pill">Anime</span>' : '';
+            var epLine = code + (ep.Title ? ' <span class="dot"></span> ' + escapeHtml(ep.Title) : '');
+
+            return '<div class="me-show" data-i="' + idx + '">'
+                + poster
+                + badge
+                + '<div class="me-show-meta">'
+                + '<div class="t">' + escapeHtml(s.Title) + titleTag + '</div>'
+                + '<div class="s">' + epLine + '</div>'
+                + '</div></div>';
+        }).join('');
+
+        return '<section class="me-cal-group">'
+            + '<h3 class="me-cal-h">' + sec.label + '</h3>'
+            + '<div class="me-grid">' + cards + '</div>'
+            + '</section>';
+    }).join('');
+
+    if (!html) {
+        c.innerHTML = '<div class="me-empty">'
+            + '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>'
+            + '<h3>Nothing planned</h3><p>Nothing scheduled</h3><p>No episodes with a known air date.</p><p>Uncheck "Ignore unaired" in the settings to see upcoming episodes.</></div>';
+        return;
+    }
+
+    c.innerHTML = html;
+
+    c.querySelectorAll('.me-poster[data-bg]').forEach(function (p) {
+        setBgImage(p, p.getAttribute('data-bg'));
+    });
+    c.querySelectorAll('.me-show').forEach(function (el) {
+        el.addEventListener('click', function () {
+            var ep = calendarEpisodes[parseInt(el.getAttribute('data-i'), 10)];
+            openDetail(ep.series);
+        });
+    });
+}
     // Called from the detail view's Unignore button.
     function unignoreCurrent() {
         var s = state.current;
@@ -2596,6 +2764,23 @@
         if (e.target.tagName === 'BUTTON') {
             state.scope = e.target.getAttribute('data-v');
             setSeg('#meScopeSeg', state.scope);
+            applyFilters();
+        }
+    });
+    $('#meViewSeg').addEventListener('click', function (e) {
+        if (e.target.tagName === 'BUTTON') {
+            state.view = e.target.getAttribute('data-v');
+            if(state.view == "Standard"){
+                $('#meCalendar').style.display = 'none';
+                $('#meGrid').style.display = '';
+                $('#meFilters').style.display = '';
+            }else if(state.view == "Calendar"){
+                $('#meGrid').style.display = 'none';
+                $('#meCalendar').style.display = '';
+                $('#meFilters').style.display = 'none';
+                renderCalendar()
+            }
+            setSeg('#meViewSeg', state.view);
             applyFilters();
         }
     });
