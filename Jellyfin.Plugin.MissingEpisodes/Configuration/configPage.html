@@ -303,8 +303,13 @@
 .me-history.show { display: block; }
 .me-history-head { display: flex; align-items: center; justify-content: space-between;
   cursor: pointer; user-select: none; padding: .25rem 0; }
-.me-history-head h4 { margin: 0; font-size: .82rem; font-weight: 600; color: var(--dim);
+.me-history-head h4, .me-history-head .me-cal-title { margin: 0; font-size: .82rem; font-weight: 600; color: var(--dim);
   text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: .45rem; }
+.me-cal-toggle { width: 100%; border: 0; color: inherit; background: transparent;
+    font: inherit; text-align: left; }
+.me-cal-toggle .me-cal-title { flex: 1; }
+.me-cal-count { color: var(--dim-2); font-weight: 500; letter-spacing: 0; text-transform: none; }
+.me-cal-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .me-history-head .chev { width: 14px; height: 14px; color: var(--dim); transition: transform .18s; }
 .me-history.open .me-history-head .chev { transform: rotate(90deg); }
 .me-history-body { display: none; padding-top: .5rem; border-top: 1px solid var(--border);
@@ -1002,7 +1007,8 @@
 #missingEpisodesPage[data-me-style="revamp"] .me-history-head {
     padding: 0 0 4px 0 !important;
 }
-#missingEpisodesPage[data-me-style="revamp"] .me-history-head h4 {
+#missingEpisodesPage[data-me-style="revamp"] .me-history-head h4,
+#missingEpisodesPage[data-me-style="revamp"] .me-history-head .me-cal-title {
     font: 700 10px/1 var(--rv-mono) !important;
     letter-spacing: 0.24em !important;
     text-transform: uppercase !important;
@@ -1022,6 +1028,9 @@
     top: 14px; bottom: 8px;
     width: 1px;
     background: var(--border);
+}
+#missingEpisodesPage[data-me-style="revamp"] .me-cal-section .me-history-body::before {
+    display: none;
 }
 #missingEpisodesPage[data-me-style="revamp"] .me-history-row {
     grid-template-columns: auto auto auto auto auto !important;
@@ -2449,9 +2458,16 @@ function renderCalendar() {
                 + '</div></div>';
         }).join('');
 
-        return '<section class="me-cal-group">'
-            + '<h3 class="me-cal-h">' + sec.label + '</h3>'
-            + '<div class="me-grid">' + cards + '</div>'
+        var isOpen = sec.key !== 'released';
+        var sectionBodyId = 'meCal-' + sec.key + '-body';
+        return '<section class="me-history show me-cal-section' + (isOpen ? ' open' : '') + '">'
+            + '<button type="button" class="me-history-head me-cal-toggle" aria-expanded="'
+            + (isOpen ? 'true' : 'false') + '" aria-controls="' + sectionBodyId + '">'
+            + '<span class="me-cal-title"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>'
+            + escapeHtml(sec.label) + ' <span class="me-cal-count">· ' + list.length + ' episode'
+            + (list.length === 1 ? '' : 's') + '</span></span></button>'
+            + '<div class="me-history-body" id="' + sectionBodyId + '">'
+            + '<div class="me-grid">' + cards + '</div></div>'
             + '</section>';
     }).join('');
 
@@ -2466,6 +2482,13 @@ function renderCalendar() {
 
     c.querySelectorAll('.me-poster[data-bg]').forEach(function (p) {
         setBgImage(p, p.getAttribute('data-bg'));
+    });
+    c.querySelectorAll('.me-cal-toggle').forEach(function (toggle) {
+        toggle.addEventListener('click', function () {
+            var section = toggle.closest('.me-cal-section');
+            var isOpen = section.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
     });
     c.querySelectorAll('.me-show').forEach(function (el) {
         el.addEventListener('click', function (event) {
