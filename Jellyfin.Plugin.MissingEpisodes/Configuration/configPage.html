@@ -2478,12 +2478,18 @@ function renderCalendar(seriesList) {
             var isCompleteSeason = seasonSummary && seasonSummary.TotalEpisodes > 0
                 && groupEps.length === seasonSummary.TotalEpisodes;
             var episodeNumbers = groupEps.map(function (ep) {
-                return 'E' + pad2(ep.EpisodeNumber);
-            }).join(', ');
+                return ep.EpisodeNumber;
+            }).sort(function (a, b) { return a - b; });
+            var episodeSummary = groupEps.length > 4
+                ? groupEps.length + ' eps · E' + pad2(episodeNumbers[0])
+                    + ' - E' + pad2(episodeNumbers[episodeNumbers.length - 1])
+                : episodeNumbers.map(function (episodeNumber) {
+                    return 'E' + pad2(episodeNumber);
+                }).join(', ');
             var seasonCode = 'S' + pad2(seasonNumber);
             var epLine = isCompleteSeason
                 ? (seasonNumber === 0 ? '<strong>Specials</strong> complete' : '<strong>Season ' + seasonNumber + '</strong> complete')
-                : '<strong>' + seasonCode + '</strong> · ' + episodeNumbers;
+                : '<strong>' + seasonCode + '</strong> · ' + episodeSummary;
 
             return '<div class="me-show" data-i="' + idx + '">'
                 + poster
