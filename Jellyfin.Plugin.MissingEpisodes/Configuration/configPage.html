@@ -363,6 +363,20 @@
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
         gap: .4rem !important;
     }
+    #missingEpisodesPage #meCalendar .me-cal-section .me-badge {
+        font-size: .63rem !important;
+        line-height: 1 !important;
+        letter-spacing: 0 !important;
+        padding: .14rem .28rem !important;
+        border-radius: 5px !important;
+    }
+    #missingEpisodesPage #meCalendar .me-cal-section .me-calendar-link {
+        padding-left: .22rem !important;
+        padding-right: .22rem !important;
+    }
+    #missingEpisodesPage #meCalendar .me-cal-section .me-calendar-label {
+        font-size: .63rem;
+    }
 }
 
 /* ============================================================================
@@ -798,8 +812,8 @@
     top: 10px !important;
     right: 10px !important;
     left: auto !important;
-    background: #1a7e3e !important;
-    border-color: #1a7e3e !important;
+    background: #72c64d !important;
+    border-color: #72c64d !important;
 }
 #missingEpisodesPage[data-me-style="revamp"] .me-badge.low {
     background: linear-gradient(135deg, oklch(78% 0.18 75), oklch(80% 0.16 90)) !important;
@@ -2392,7 +2406,7 @@ function groupUpcoming(episodes, now) {
         else {
             var key = ep.date.getFullYear() + '-' + pad2(ep.date.getMonth() + 1);
             if (!monthIndex[key]) {
-                var label = ep.date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                var label = ep.date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
                 label = label.charAt(0).toUpperCase() + label.slice(1); 
                 monthIndex[key] = { key: 'month-' + key, label: label, list: [] };
                 groups.months.push(monthIndex[key]);
@@ -2418,10 +2432,10 @@ function renderCalendar(seriesList) {
     calendarEpisodes = [];
 
     var sections = [
-        { key: 'released', label: 'Already released', list: groups.released },
-        { key: 'tomorrow', label: 'Tomorrow',         list: groups.tomorrow },
-        { key: 'week',     label: 'This week',        list: groups.week },
-        { key: 'next',     label: 'Next week',        list: groups.next }
+        { key: 'released', label: 'Déjà sortis',          list: groups.released },
+        { key: 'tomorrow', label: 'Demain',               list: groups.tomorrow },
+        { key: 'week',     label: 'Cette semaine',        list: groups.week },
+        { key: 'next',     label: 'La semaine prochaine', list: groups.next }
     ].concat(groups.months.map(function (m) {
         return { key: m.key, label: m.label, list: m.list };
     }));
@@ -2441,7 +2455,7 @@ function renderCalendar(seriesList) {
                 : '<div class="me-poster"><div class="me-ph">' + escapeHtml(s.Title) + '</div></div>';
 
             var code = 'S' + pad2(ep.SeasonNumber) + 'E' + pad2(ep.EpisodeNumber);
-            var dateTxt = ep.date.toLocaleDateString('en-US', {
+            var dateTxt = ep.date.toLocaleDateString('fr-FR', {
                 weekday: 'short', day: 'numeric', month: 'short'
             });
             var badgeStyle = sec.key === 'released' ? ' style="background:var(--accent-2);"' : '';
