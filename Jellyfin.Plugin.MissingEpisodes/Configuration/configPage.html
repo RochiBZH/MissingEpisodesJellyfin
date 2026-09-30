@@ -147,6 +147,7 @@
   -webkit-box-orient: vertical; min-height: 2.2em; }
 .me-show-meta .s { font-size: .7rem; color: var(--dim); display: flex; gap: .4rem; align-items: center;
   flex-wrap: wrap; }
+.me-show-meta .s strong { color: var(--text); font-weight: 700; }
 .me-show-meta .s .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--dim-2); }
 .me-size-chip { position: absolute; bottom: .5rem; left: .5rem; background: rgba(0,0,0,0.72);
   color: #fff; font-size: .68rem; padding: .18rem .48rem; border-radius: 100px; font-weight: 500;
@@ -2177,8 +2178,12 @@
             $('#meCalendar').style.display = 'none'; 
             $('#meGrid').style.display = 'none'; 
             $('#meFilters').style.display = 'none';   
+            $('#meView').style.display = 'none';
         } else {
             sk.style.display = 'none';
+            var hasAny = state.result && ((state.result.Series && state.result.Series.length)
+                || (state.result.IgnoredSeries && state.result.IgnoredSeries.length));
+            $('#meView').style.display = hasAny ? 'flex' : 'none';
             if(state.view == 'Standard'){
                 $('#meGrid').style.display = 'grid';  
                 $('#meFilters').style.display = '';   
@@ -2444,9 +2449,35 @@ function renderCalendar(seriesList) {
         var list = sec.list;
         if (!list.length) return '';                
 
-        var cards = list.map(function (ep) {
-            var idx = calendarEpisodes.push(ep) - 1;
+        var groupedEpisodes = [];
+        var groupIndex = Object.create(null);
+        list.forEach(function (ep) {
             var s = ep.series;
+            var seriesKey = s.TvdbId ? 'tvdb:' + s.TvdbId
+                : (s.TmdbId ? 'tmdb:' + s.TmdbId
+                    : (s.JellyfinSeriesId || 'title:' + s.Title));
+            var key = seriesKey + ':' + ep.SeasonNumber;
+            if (!groupIndex[key]) {
+                groupIndex[key] = { series: s, seasonNumber: ep.SeasonNumber, episodes: [] };
+                groupedEpisodes.push(groupIndex[key]);
+            }
+            groupIndex[key].episodes.push(ep);
+        });
+        groupedEpisodes.forEach(function (group) {
+            group.episodes.sort(function (a, b) { return a.date - b.date; });
+        });
+        if (sec.key === 'released') {
+            groupedEpisodes.sort(function (a, b) {
+                return a.series.Title.localeCompare(b.series.Title)
+                    || a.seasonNumber - b.seasonNumber;
+            });
+        }
+
+        var cards = groupedEpisodes.map(function (group) {
+            var idx = calendarEpisodes.push(group) - 1;
+            var s = group.series;
+            var groupEps = group.episodes;
+            var seasonNumber = group.seasonNumber;
 
             var posterUrl = resolveImage(s.PosterUrl, 'Primary');
             var posterData = posterUrl ? ' data-bg="' + escapeHtml(posterUrl) + '"' : '';
@@ -2454,22 +2485,39 @@ function renderCalendar(seriesList) {
                 ? '<div class="me-poster"' + posterData + '></div>'
                 : '<div class="me-poster"><div class="me-ph">' + escapeHtml(s.Title) + '</div></div>';
 
-            var code = 'S' + pad2(ep.SeasonNumber) + 'E' + pad2(ep.EpisodeNumber);
-            var dateTxt = ep.date.toLocaleDateString('fr-FR', {
+            var firstDate = groupEps[0].date;
+            var lastDate = groupEps[groupEps.length - 1].date;
+            var dateTxt = firstDate.toLocaleDateString('fr-FR', {
                 weekday: 'short', day: 'numeric', month: 'short'
             });
+            if (groupEps.length > 1) {
+                var firstDay = firstDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                var lastDay = lastDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                dateTxt = firstDay === lastDay ? firstDay : firstDay + ' - ' + lastDay;
+            }
             var badgeStyle = sec.key === 'released' ? ' style="background:var(--accent-2);"' : '';
             var badge = '<span class="me-badge"' + badgeStyle + '>' + escapeHtml(dateTxt) + '</span>';
 
             var titleTag = s.SeriesType === 'anime'
                 ? '<span class="me-type-pill">Anime</span>' : '';
-            var epLine = code + (ep.Title ? ' <span class="dot"></span> ' + escapeHtml(ep.Title) : '');
             var searchUrl = 'https://c411.org/torrents?q='
                 + encodeURIComponent(s.Title).replace(/%20/g, '+') + '&sortBy=relevance';
             var c411Link = '<a class="me-badge me-calendar-link" href="' + escapeHtml(searchUrl)
                 + '" target="_blank" rel="noopener noreferrer" aria-label="Search '
                 + escapeHtml(s.Title) + ' on c411" title="Search on c411">'
                 + '<span class="me-calendar-label" aria-hidden="true">C411</span></a>';
+            var seasonSummary = (s.Seasons || []).find(function (season) {
+                return season.SeasonNumber === seasonNumber;
+            });
+            var isCompleteSeason = seasonSummary && seasonSummary.TotalEpisodes > 0
+                && groupEps.length === seasonSummary.TotalEpisodes;
+            var episodeNumbers = groupEps.map(function (ep) {
+                return 'E' + pad2(ep.EpisodeNumber);
+            }).join(', ');
+            var seasonCode = 'S' + pad2(seasonNumber);
+            var epLine = isCompleteSeason
+                ? (seasonNumber === 0 ? '<strong>Specials</strong> complete' : '<strong>Season ' + seasonNumber + '</strong> complete')
+                : '<strong>' + seasonCode + '</strong> · ' + episodeNumbers;
 
             return '<div class="me-show" data-i="' + idx + '">'
                 + poster
@@ -2516,8 +2564,8 @@ function renderCalendar(seriesList) {
     c.querySelectorAll('.me-show').forEach(function (el) {
         el.addEventListener('click', function (event) {
             if (event.target.closest('.me-calendar-link')) return;
-            var ep = calendarEpisodes[parseInt(el.getAttribute('data-i'), 10)];
-            openDetail(ep.series);
+            var group = calendarEpisodes[parseInt(el.getAttribute('data-i'), 10)];
+            openDetail(group.series);
         });
     });
 }
