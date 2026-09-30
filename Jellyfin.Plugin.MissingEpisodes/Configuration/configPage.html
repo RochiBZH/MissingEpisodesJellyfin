@@ -2149,8 +2149,12 @@
             $('#meCalendar').style.display = 'none'; 
             $('#meGrid').style.display = 'none'; 
             $('#meFilters').style.display = 'none';   
+            $('#meView').style.display = 'none';
         } else {
             sk.style.display = 'none';
+            var hasAny = state.result && ((state.result.Series && state.result.Series.length)
+                || (state.result.IgnoredSeries && state.result.IgnoredSeries.length));
+            $('#meView').style.display = hasAny ? 'flex' : 'none';
             if(state.view == 'Standard'){
                 $('#meGrid').style.display = 'grid';  
                 $('#meFilters').style.display = '';   
