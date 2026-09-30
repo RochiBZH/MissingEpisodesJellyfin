@@ -104,6 +104,8 @@
 
 .me-filters { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: 1.1rem;
   justify-content: flex-end; }
+.me-filters[data-view="calendar"] #meSortSeg,
+.me-filters[data-view="calendar"] #meBulkSearchBtn { display: none !important; }
 .me-search { position: relative; flex: 0 1 auto; }
 .me-search svg { position: absolute; left: .65rem; top: 50%; transform: translateY(-50%);
   width: 13px; height: 13px; color: var(--dim); pointer-events: none; }
@@ -2150,6 +2152,7 @@
                 $('#meFilters').style.display = '';   
             }else if(state.view == 'Calendar' ){
                 $('#meCalendar').style.display = 'grid';
+                $('#meFilters').style.display = '';
             }
         }
     }
@@ -2222,7 +2225,7 @@
     }
 
     function applyFilters() {
-        if (!state.result || state.view != "Standard") return;
+        if (!state.result) return;
         var q = state.query.trim().toLowerCase();
         var typeFilter = state.type;
         var source = state.scope === 'ignored'
@@ -2255,7 +2258,8 @@
             list.sort(function (a, b) { return b.MissingCount - a.MissingCount; });
         }
         state.filtered = list;
-        renderGrid();
+        if (state.view === 'Calendar') renderCalendar(list);
+        else renderGrid();
     }
 
     function renderGrid() {
@@ -2387,11 +2391,11 @@ var calendarEpisodes = [];
 
 function pad2(n) { return n < 10 ? '0' + n : String(n); }
 
-function renderCalendar() {
+function renderCalendar(seriesList) {
     var c = $('#meCalendar');
     if (!state.result) return;
 
-    var episodes = getEpisodesWithDate(state.result.Series);
+    var episodes = getEpisodesWithDate(seriesList || state.result.Series);
     var groups = groupUpcoming(episodes);
     calendarEpisodes = [];
 
@@ -2797,11 +2801,12 @@ function renderCalendar() {
                 $('#meCalendar').style.display = 'none';
                 $('#meGrid').style.display = '';
                 $('#meFilters').style.display = '';
+                $('#meFilters').removeAttribute('data-view');
             }else if(state.view == "Calendar"){
                 $('#meGrid').style.display = 'none';
                 $('#meCalendar').style.display = '';
-                $('#meFilters').style.display = 'none';
-                renderCalendar()
+                $('#meFilters').style.display = '';
+                $('#meFilters').setAttribute('data-view', 'calendar');
             }
             setSeg('#meViewSeg', state.view);
             applyFilters();
