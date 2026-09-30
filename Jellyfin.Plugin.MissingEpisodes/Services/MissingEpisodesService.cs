@@ -474,30 +474,19 @@ public class MissingEpisodesService
             int.TryParse(tvdbStr, out var tvdbId);
             var tmdbStrSeries = series.GetProviderId(MetadataProvider.Tmdb);
             int.TryParse(tmdbStrSeries, out var tmdbIdSeries);
-            if (tvdbId > 0 && ignoredTvdb.Contains(tvdbId))
-            {
-                var jfSeriesIdIg = series.Id.ToString("N");
-                result.IgnoredSeries.Add(new ScanSeries
-                {
-                    SonarrId = 0,
-                    TvdbId = tvdbId,
-                    TmdbId = tmdbIdSeries,
-                    JellyfinSeriesId = jfSeriesIdIg,
-                    Title = series.Name,
-                    Year = series.ProductionYear ?? 0,
-                    Network = series.Studios?.FirstOrDefault(),
-                    Status = series.Status?.ToString(),
-                    Path = series.Path,
-                    SeriesType = InferJellyfinSeriesType(series),
-                    PosterUrl = "jellyfin:" + jfSeriesIdIg
-                });
-                continue;
-            }
-
+            var isIgnored = tvdbId > 0 && ignoredTvdb.Contains(tvdbId);
             string? sonarrPath = null;
             if (sonarrByTvdb != null && tvdbId > 0 && sonarrByTvdb.TryGetValue(tvdbId, out var sS))
             {
                 sonarrPath = sS.Path;
+            }
+
+            if (isIgnored)
+            {
+                var ignoredEntry = await ProcessJellyfinSeriesAsync(
+                    cfg, series, mode, sonarrPath, ct, ignoredTvdb, includeIgnored: true).ConfigureAwait(false);
+                if (ignoredEntry != null) result.IgnoredSeries.Add(ignoredEntry);
+                continue;
             }
 
             var entry = await ProcessJellyfinSeriesAsync(cfg, series, mode, sonarrPath, ct, ignoredTvdb).ConfigureAwait(false);
@@ -784,14 +773,14 @@ public class MissingEpisodesService
     // Missing = entries in expected not in present.
     //
     // Returns null for ignored series or ones with nothing missing.
-    private async Task<ScanSeries?> ProcessJellyfinSeriesAsync(PluginConfiguration cfg, Series series, string mode, string? sonarrPathFallback, CancellationToken ct, HashSet<int>? ignoredTvdb = null)
+    private async Task<ScanSeries?> ProcessJellyfinSeriesAsync(PluginConfiguration cfg, Series series, string mode, string? sonarrPathFallback, CancellationToken ct, HashSet<int>? ignoredTvdb = null, bool includeIgnored = false)
     {
         ignoredTvdb ??= new HashSet<int>(cfg.IgnoredSeriesTvdbIds);
         var tvdbStr = series.GetProviderId(MetadataProvider.Tvdb);
         int.TryParse(tvdbStr, out var tvdbId);
         var tmdbStrSeries = series.GetProviderId(MetadataProvider.Tmdb);
         int.TryParse(tmdbStrSeries, out var tmdbIdSeries);
-        if (tvdbId > 0 && ignoredTvdb.Contains(tvdbId)) return null;
+        if (!includeIgnored && tvdbId > 0 && ignoredTvdb.Contains(tvdbId)) return null;
 
         var now = DateTime.UtcNow;
         var allEps = _libraryManager.GetItemList(new InternalItemsQuery
@@ -969,7 +958,7 @@ public class MissingEpisodesService
             seasonStats[sn] = new SeasonCount { Have = have, Total = unionCount };
         }
 
-        if (missing.Count == 0) return null;
+        if (missing.Count == 0 && !includeIgnored) return null;
 
         var jfSeriesId = series.Id.ToString("N");
         return new ScanSeries
