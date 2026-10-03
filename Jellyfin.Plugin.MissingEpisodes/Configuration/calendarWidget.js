@@ -101,6 +101,24 @@
         });
     }
 
+    function copySeasonPath(path) {
+        if (!path) return;
+        function fallbackCopy() {
+            var input = document.createElement('textarea');
+            input.value = path;
+            input.style.position = 'fixed';
+            input.style.opacity = '0';
+            document.body.appendChild(input);
+            input.select();
+            try { document.execCommand('copy'); } finally { input.remove(); }
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(path).catch(fallbackCopy);
+        } else {
+            fallbackCopy();
+        }
+    }
+
     function installStyles() {
         if (document.getElementById('me-user-calendar-styles')) return;
         var style = document.createElement('style');
@@ -110,6 +128,7 @@
             '.meuc-floating-button{position:fixed!important;right:24px!important;bottom:24px!important;z-index:2147483647!important;display:block!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;padding:9px 17px!important;border:1px solid rgba(255,255,255,.22)!important;border-radius:24px!important;background:rgba(10,10,10,.93)!important;backdrop-filter:blur(10px)!important;box-shadow:0 4px 24px rgba(0,0,0,.65)!important;color:#fff!important;font:600 14px/1 system-ui,-apple-system,"Segoe UI",sans-serif!important;cursor:pointer!important;user-select:none!important;white-space:nowrap!important;transition:background .2s,transform .15s!important}',
             '.meuc-floating-button:hover{background:rgba(30,30,30,.98)!important;transform:scale(1.05)!important}',
             '.meuc-floating-button:focus-visible{outline:2px solid #e5706e!important;outline-offset:3px!important}',
+            'html.meuc-calendar-open .meuc-floating-button{display:none!important}',
             '#me-user-calendar-overlay.meuc-open{display:flex}',
             '#me-user-calendar-overlay *{box-sizing:border-box}',
             '.meuc-panel{width:min(1180px,100%);height:min(92vh,900px);display:flex;flex-direction:column;overflow:hidden;background:#111318;border:1px solid rgba(255,255,255,.14);border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.6)}',
@@ -133,16 +152,18 @@
             '.meuc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}',
             '.meuc-card{min-width:0;overflow:hidden;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:#191b21}',
             '.meuc-poster{position:relative;width:100%;aspect-ratio:2/3;background:#20232a center/cover no-repeat}',
-            '.meuc-date{position:absolute;top:7px;right:7px;max-width:calc(100% - 14px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:4px 6px;border-radius:999px;background:#e5706e;color:#fff;font-size:10px;font-weight:650}',
-            '.meuc-c411{position:absolute;z-index:3;top:7px;left:7px;display:inline-flex;align-items:center;justify-content:center;padding:4px 7px;border:1px solid #1a7e3e;border-radius:6px;background:#1a7e3e;color:#fff;text-decoration:none;font-size:10px;font-weight:700}',
+            '.meuc-date,.meuc-c411{top:7px;line-height:1;font-size:.7rem;font-weight:600;letter-spacing:.1px;padding:.22rem .5rem}',
+            '.meuc-date{position:absolute;right:7px;max-width:calc(100% - 14px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:999px;background:#e5706e;color:#fff}',
+            '.meuc-c411{position:absolute;z-index:3;left:7px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #1a7e3e;border-radius:6px;background:#1a7e3e;box-shadow:0 3px 10px rgba(0,0,0,.5);color:#fff;text-decoration:none}',
             '.meuc-c411:focus-visible{outline:2px solid #e5706e;outline-offset:2px}',
+            '@media(max-width:720px){.meuc-date,.meuc-c411{top:4px;line-height:1;font-size:.63rem;letter-spacing:0;padding:.14rem .22rem;border-radius:5px}.meuc-c411{left:4px}}',
             '.meuc-card-meta{padding:8px 9px 10px}',
             '.meuc-card-title{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:#f2f2f4;font-size:13px;font-weight:650;line-height:1.25}',
             '.meuc-card-episodes{margin-top:5px;color:rgba(235,237,240,.65);font-size:11px;line-height:1.35}',
             '.meuc-card-episodes strong{color:#f2f2f4;font-weight:750}',
             '.meuc-empty,.meuc-loading,.meuc-error{padding:48px 16px;text-align:center;color:rgba(235,237,240,.68)}',
             '.meuc-error{color:#f28b82}',
-            '@media(max-width:720px){.meuc-floating-button{right:16px;bottom:calc(16px + env(safe-area-inset-bottom))}#me-user-calendar-overlay{padding:0}.meuc-panel{width:100%;height:100%;max-height:none;border:0;border-radius:0}.meuc-header{padding:12px 14px}.meuc-filters{gap:7px;padding:10px 12px}.meuc-filters select{flex:1;min-width:0}.meuc-filters input{flex:1 0 100%;min-width:0}.meuc-content{padding:12px}.meuc-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.meuc-card-meta{padding:6px}.meuc-card-title{font-size:11px}.meuc-card-episodes{font-size:9px}.meuc-date{top:4px;right:4px;max-width:calc(100% - 8px);padding:3px 4px;font-size:8px}}'
+            '@media(max-width:720px){.meuc-floating-button{right:16px;bottom:calc(16px + env(safe-area-inset-bottom))}#me-user-calendar-overlay{padding:0}.meuc-panel{width:100%;height:100%;max-height:none;border:0;border-radius:0}.meuc-header{padding:12px 14px}.meuc-filters{gap:7px;padding:10px 12px}.meuc-filters select{flex:1;min-width:0}.meuc-filters input{flex:1 0 100%;min-width:0}.meuc-content{padding:12px}.meuc-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.meuc-card-meta{padding:6px}.meuc-card-title{font-size:11px}.meuc-card-episodes{font-size:9px}.meuc-date{right:4px;max-width:calc(100% - 8px)}}'
         ].join('');
         document.head.appendChild(style);
     }
@@ -187,6 +208,7 @@
         var overlay = document.getElementById(OVERLAY_ID);
         if (!overlay) return;
         overlay.classList.remove('meuc-open');
+        document.documentElement.classList.remove('meuc-calendar-open');
         document.documentElement.style.overflow = '';
         document.body.style.overflow = '';
     }
@@ -383,10 +405,16 @@
                     dateText = firstText === lastText ? firstText : firstText + ' - ' + lastText;
                 }
                 var title = getField(series, 'Title') || '';
+                var seasonSummary = (getField(series, 'Seasons') || []).find(function (season) {
+                    return getField(season, 'SeasonNumber') === group.seasonNumber;
+                });
+                var seasonPath = seasonSummary && getField(seasonSummary, 'Path');
                 var searchUrl = 'https://c411.org/torrents?q='
                     + encodeURIComponent(title).replace(/%20/g, '+') + '&sortBy=relevance';
                 var c411Link = state.isAdministrator
-                    ? '<a class="meuc-c411" href="' + escapeHtml(searchUrl) + '" target="_blank" rel="noopener noreferrer" aria-label="Search '
+                    ? '<a class="meuc-c411" href="' + escapeHtml(searchUrl) + '"'
+                        + (seasonPath ? ' data-season-path="' + escapeHtml(seasonPath) + '"' : '')
+                        + ' target="_blank" rel="noopener noreferrer" aria-label="Search '
                         + escapeHtml(title) + ' on c411" title="Search on c411">C411</a>'
                     : '';
                 var typeTag = (getField(series, 'SeriesType') || '').toLowerCase() === 'anime'
@@ -420,6 +448,11 @@
                 toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
             });
         });
+        content.querySelectorAll('.meuc-c411[data-season-path]').forEach(function (link) {
+            link.addEventListener('click', function () {
+                copySeasonPath(link.getAttribute('data-season-path'));
+            });
+        });
         content.querySelectorAll('.meuc-poster[data-image]').forEach(function (poster) {
             poster.style.backgroundImage = 'url(' + JSON.stringify(poster.getAttribute('data-image')) + ')';
         });
@@ -446,8 +479,8 @@
         button.id = FLOATING_BUTTON_ID;
         button.type = 'button';
         button.className = 'meuc-floating-button';
-        button.textContent = 'Calendar';
-        button.setAttribute('aria-label', 'Open episode calendar');
+        button.textContent = 'Calendrier';
+        button.setAttribute('aria-label', 'Ouvrir le calendrier des épisodes');
         button.addEventListener('click', openOverlay);
         document.body.appendChild(button);
     }
@@ -464,6 +497,7 @@
         installStyles();
         var overlay = createOverlay();
         overlay.classList.add('meuc-open');
+        document.documentElement.classList.add('meuc-calendar-open');
         document.documentElement.style.overflow = 'hidden';
         document.body.style.overflow = 'hidden';
         overlay.querySelector('.meuc-close').focus();

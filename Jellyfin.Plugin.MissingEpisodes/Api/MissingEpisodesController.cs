@@ -133,6 +133,7 @@ public class MissingEpisodesController : ControllerBase
     {
         var last = _service.LastResult;
         if (last == null) return Ok(new { empty = true });
+        MissingEpisodesService.PopulateSeasonPaths(last);
         return Ok(last);
     }
 

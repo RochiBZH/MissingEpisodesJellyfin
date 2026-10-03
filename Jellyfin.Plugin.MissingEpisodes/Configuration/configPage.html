@@ -2500,15 +2500,16 @@ function renderCalendar(seriesList) {
 
             var titleTag = s.SeriesType === 'anime'
                 ? '<span class="me-type-pill">Anime</span>' : '';
-            var searchUrl = 'https://c411.org/torrents?q='
-                + encodeURIComponent(s.Title).replace(/%20/g, '+') + '&sortBy=relevance';
-            var c411Link = '<a class="me-badge me-calendar-link" href="' + escapeHtml(searchUrl)
-                + '" target="_blank" rel="noopener noreferrer" aria-label="Search '
-                + escapeHtml(s.Title) + ' on c411" title="Search on c411">'
-                + '<span class="me-calendar-label" aria-hidden="true">C411</span></a>';
             var seasonSummary = (s.Seasons || []).find(function (season) {
                 return season.SeasonNumber === seasonNumber;
             });
+            var searchUrl = 'https://c411.org/torrents?q='
+                + encodeURIComponent(s.Title).replace(/%20/g, '+') + '&sortBy=relevance';
+            var c411Link = '<a class="me-badge me-calendar-link" href="' + escapeHtml(searchUrl)
+                + '"' + (seasonSummary && seasonSummary.Path ? ' data-season-path="' + escapeHtml(seasonSummary.Path) + '"' : '')
+                + ' target="_blank" rel="noopener noreferrer" aria-label="Search '
+                + escapeHtml(s.Title) + ' on c411" title="Search on c411">'
+                + '<span class="me-calendar-label" aria-hidden="true">C411</span></a>';
             var isCompleteSeason = seasonSummary && seasonSummary.TotalEpisodes > 0
                 && groupEps.length === seasonSummary.TotalEpisodes;
             var episodeNumbers = groupEps.map(function (ep) {
@@ -2556,6 +2557,30 @@ function renderCalendar(seriesList) {
     }
 
     c.innerHTML = html;
+
+    function copySeasonPath(path) {
+        if (!path) return;
+        function fallbackCopy() {
+            var input = document.createElement('textarea');
+            input.value = path;
+            input.style.position = 'fixed';
+            input.style.opacity = '0';
+            document.body.appendChild(input);
+            input.select();
+            try { document.execCommand('copy'); } finally { input.remove(); }
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(path).catch(fallbackCopy);
+        } else {
+            fallbackCopy();
+        }
+    }
+
+    c.querySelectorAll('.me-calendar-link[data-season-path]').forEach(function (link) {
+        link.addEventListener('click', function () {
+            copySeasonPath(link.getAttribute('data-season-path'));
+        });
+    });
 
     c.querySelectorAll('.me-poster[data-bg]').forEach(function (p) {
         setBgImage(p, p.getAttribute('data-bg'));

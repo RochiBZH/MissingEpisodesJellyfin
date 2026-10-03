@@ -86,11 +86,16 @@ public sealed class CalendarController : ControllerBase
             return Ok(new UserCalendarData { IsAdministrator = isAdministrator });
         }
 
+        if (isAdministrator)
+        {
+            MissingEpisodesService.PopulateSeasonPaths(lastResult);
+        }
+
         return Ok(new UserCalendarData
         {
             IsAdministrator = isAdministrator,
-            Series = ProjectVisibleSeries(lastResult.Series, visibleById, visibleByTvdb),
-            IgnoredSeries = ProjectVisibleSeries(lastResult.IgnoredSeries, visibleById, visibleByTvdb)
+            Series = ProjectVisibleSeries(lastResult.Series, visibleById, visibleByTvdb, isAdministrator),
+            IgnoredSeries = ProjectVisibleSeries(lastResult.IgnoredSeries, visibleById, visibleByTvdb, isAdministrator)
         });
     }
 
@@ -115,7 +120,8 @@ public sealed class CalendarController : ControllerBase
     private static List<UserCalendarSeries> ProjectVisibleSeries(
         IEnumerable<ScanSeries> source,
         IReadOnlyDictionary<string, Series> visibleById,
-        IReadOnlyDictionary<int, Series> visibleByTvdb)
+        IReadOnlyDictionary<int, Series> visibleByTvdb,
+        bool includeSeasonPaths)
     {
         var result = new List<UserCalendarSeries>();
         foreach (var scanSeries in source)
@@ -143,7 +149,8 @@ public sealed class CalendarController : ControllerBase
                     .Select(season => new UserCalendarSeason
                     {
                         SeasonNumber = season.SeasonNumber,
-                        TotalEpisodes = season.TotalEpisodes
+                        TotalEpisodes = season.TotalEpisodes,
+                        Path = includeSeasonPaths ? season.Path : null
                     }).ToList(),
                 Missing = (scanSeries.Missing ?? new List<MissingEpisode>())
                     .Where(episode => episode.AirDateUtc.HasValue)
@@ -181,6 +188,7 @@ public sealed class UserCalendarSeason
 {
     public int SeasonNumber { get; init; }
     public int TotalEpisodes { get; init; }
+    public string? Path { get; init; }
 }
 
 public sealed class UserCalendarEpisode

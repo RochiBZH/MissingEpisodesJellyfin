@@ -388,12 +388,7 @@ public class MissingEpisodesService
             HaveEpisodes = seasonStats.Values.Sum(x => x.Have),
             TotalEpisodes = seasonStats.Values.Sum(x => x.Total),
             SizeOnDisk = s.Statistics?.SizeOnDisk ?? 0,
-            Seasons = seasonStats.OrderBy(kv => kv.Key).Select(kv => new SeasonSummary
-            {
-                SeasonNumber = kv.Key,
-                TotalEpisodes = kv.Value.Total,
-                HaveEpisodes = kv.Value.Have
-            }).ToList(),
+            Seasons = BuildSeasonSummaries(s.Path, seasonStats),
             Missing = missing
         };
     }
@@ -704,12 +699,7 @@ public class MissingEpisodesService
             HaveEpisodes = seasonStats.Values.Sum(x => x.Have),
             TotalEpisodes = seasonStats.Values.Sum(x => x.Total),
             SizeOnDisk = s.Statistics?.SizeOnDisk ?? 0,
-            Seasons = seasonStats.OrderBy(kv => kv.Key).Select(kv => new SeasonSummary
-            {
-                SeasonNumber = kv.Key,
-                TotalEpisodes = kv.Value.Total,
-                HaveEpisodes = kv.Value.Have
-            }).ToList(),
+            Seasons = BuildSeasonSummaries(s.Path, seasonStats),
             Missing = missing
         };
     }
@@ -757,7 +747,9 @@ public class MissingEpisodesService
         return updated;
     }
 
-    // Extracted per-series builder for Jellyfin scans. Used by both the full scan and the
+private static readonly JsonSerializerOptions _json = new() { WriteIndented = true };
+    // Extracted p
+    // er-series builder for Jellyfin scans. Used by both the full scan and the
     // per-show refresh.
     //
     // Data model:
@@ -961,7 +953,7 @@ public class MissingEpisodesService
         if (missing.Count == 0 && !includeIgnored) return null;
 
         var jfSeriesId = series.Id.ToString("N");
-        return new ScanSeries
+       return new ScanSeries
         {
             SonarrId = 0,
             TvdbId = tvdbId,
@@ -979,12 +971,7 @@ public class MissingEpisodesService
             HaveEpisodes = seasonStats.Values.Sum(x => x.Have),
             TotalEpisodes = seasonStats.Values.Sum(x => x.Total),
             SizeOnDisk = sizeOnDisk,
-            Seasons = seasonStats.OrderBy(kv => kv.Key).Select(kv => new SeasonSummary
-            {
-                SeasonNumber = kv.Key,
-                TotalEpisodes = kv.Value.Total,
-                HaveEpisodes = kv.Value.Have
-            }).ToList(),
+            Seasons = BuildSeasonSummaries(usedPath, seasonStats),
             Missing = missing
         };
     }
@@ -1029,6 +1016,7 @@ public class MissingEpisodesService
         // Index seasons by number once instead of FirstOrDefault per removed episode.
         var seasonIndex = new Dictionary<int, SeasonSummary>(s.Seasons.Count);
         foreach (var ss in s.Seasons) seasonIndex[ss.SeasonNumber] = ss;
+        var seasonPaths = ScanSeasonFolders(s.Path);
 
         foreach (var m in toRemove)
         {
@@ -1042,7 +1030,8 @@ public class MissingEpisodesService
                     {
                         SeasonNumber = m.SeasonNumber,
                         HaveEpisodes = 1,
-                        TotalEpisodes = 1
+                        TotalEpisodes = 1,
+                        Path = ResolveSeasonFolderPath(s.Path, m.SeasonNumber, seasonPaths)
                     };
                     s.Seasons.Add(added);
                     seasonIndex[m.SeasonNumber] = added;
@@ -1227,6 +1216,9 @@ public class MissingEpisodesService
     private static readonly Regex AltSeasonEpisodeRegex = new(
         @"(?<![0-9])(\d{1,2})x(\d{1,3})(?![0-9])",
         RegexOptions.Compiled);
+    private static readonly Regex SeasonFolderRegex = new(
+        @"^(?:season[\s._-]*|s)(\d+)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
     // Common video extensions Sonarr / Jellyfin care about.
     private static readonly HashSet<string> VideoExts = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -1270,6 +1262,89 @@ public class MissingEpisodesService
             return (total, episodes);
         }
         catch { return (0, episodes); }
+    }
+
+    public static void PopulateSeasonPaths(ScanResult result)
+    {
+        foreach (var series in result.Series.Concat(result.IgnoredSeries))
+        {
+            var seasonPaths = ScanSeasonFolders(series.Path);
+            var seasonNumbers = new HashSet<int>();
+            foreach (var season in series.Seasons)
+            {
+                seasonNumbers.Add(season.SeasonNumber);
+                if (!string.IsNullOrWhiteSpace(series.Path))
+                {
+                    season.Path = ResolveSeasonFolderPath(series.Path, season.SeasonNumber, seasonPaths);
+                }
+            }
+
+            foreach (var seasonNumber in series.Missing.Select(episode => episode.SeasonNumber).Distinct())
+            {
+                if (!seasonNumbers.Add(seasonNumber)) continue;
+                series.Seasons.Add(new SeasonSummary
+                {
+                    SeasonNumber = seasonNumber,
+                    Path = ResolveSeasonFolderPath(series.Path, seasonNumber, seasonPaths)
+                });
+            }
+        }
+    }
+
+    private static List<SeasonSummary> BuildSeasonSummaries(
+        string? seriesPath,
+        IEnumerable<KeyValuePair<int, SeasonCount>> seasonStats)
+    {
+        var seasonPaths = ScanSeasonFolders(seriesPath);
+        return seasonStats.OrderBy(entry => entry.Key).Select(entry => new SeasonSummary
+        {
+            SeasonNumber = entry.Key,
+            TotalEpisodes = entry.Value.Total,
+            HaveEpisodes = entry.Value.Have,
+            Path = ResolveSeasonFolderPath(seriesPath, entry.Key, seasonPaths)
+        }).ToList();
+    }
+
+    private static Dictionary<int, string> ScanSeasonFolders(string? seriesPath)
+    {
+        var paths = new Dictionary<int, string>();
+        if (string.IsNullOrWhiteSpace(seriesPath)) return paths;
+
+        try
+        {
+            var seriesDirectory = new DirectoryInfo(seriesPath);
+            if (!seriesDirectory.Exists) return paths;
+
+            foreach (var directory in seriesDirectory.EnumerateDirectories())
+            {
+                if (string.Equals(directory.Name, "Specials", StringComparison.OrdinalIgnoreCase))
+                {
+                    paths.TryAdd(0, directory.FullName);
+                    continue;
+                }
+
+                var match = SeasonFolderRegex.Match(directory.Name);
+                if (match.Success && int.TryParse(match.Groups[1].Value, out var seasonNumber))
+                {
+                    paths.TryAdd(seasonNumber, directory.FullName);
+                }
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+
+        return paths;
+    }
+
+    private static string? ResolveSeasonFolderPath(
+        string? seriesPath,
+        int seasonNumber,
+        IReadOnlyDictionary<int, string> seasonPaths)
+    {
+        if (seasonPaths.TryGetValue(seasonNumber, out var seasonPath)) return seasonPath;
+        return string.IsNullOrWhiteSpace(seriesPath)
+            ? null
+            : Path.Combine(seriesPath, "S" + seasonNumber.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     private static string? PickImage(List<SonarrImage>? images, string coverType)
@@ -1344,6 +1419,7 @@ public class SeasonSummary
     public int SeasonNumber { get; set; }
     public int TotalEpisodes { get; set; }
     public int HaveEpisodes { get; set; }
+    public string? Path { get; set; }
 }
 
 public class MissingEpisode
