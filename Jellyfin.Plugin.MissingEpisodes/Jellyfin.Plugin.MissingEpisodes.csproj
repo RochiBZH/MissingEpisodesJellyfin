@@ -23,6 +23,24 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Configuration\configPage.html" />
+    <EmbeddedResource Include="Configuration\calendarWidget.js" />
   </ItemGroup>
+
+<!-- Cycle de déploiement automatique : Arrêt -> Copie -> Relance -->
+  <Target Name="DeployToJellyfin" AfterTargets="Build">
+    <ItemGroup>
+      <PluginFiles Include="$(OutputPath)\*.*" />
+    </ItemGroup>
+
+    <!-- 1. Arrêt du processus Jellyfin (Ignore si absent) -->
+    <Exec Command="powershell -Command &quot;Get-Process -Name 'jellyfin','Jellyfin.Server' -ErrorAction SilentlyContinue | Stop-Process -Force; exit 0&quot;" ContinueOnError="true" />
+
+    <!-- 2. Création du dossier et copie des fichiers du plugin -->
+    <MakeDir Directories="C:\Users\Clement\AppData\Local\Jellyfin\plugins\MissingEpisodes\" />
+    <Copy SourceFiles="@(PluginFiles)" DestinationFolder="C:\Users\Clement\AppData\Local\Jellyfin\plugins\MissingEpisodes\" />
+
+    <!-- 3. Redémarrage de Jellyfin (Vérifie le chemin de ton jellyfin.exe) -->
+    <Exec Command="powershell -Command &quot;if (Test-Path '$env:LocalAppData\Jellyfin\jellyfin.exe') { Start-Process '$env:LocalAppData\Jellyfin\jellyfin.exe' } elseif (Test-Path 'C:\Program Files\Jellyfin\Server\jellyfin.exe') { Start-Process 'C:\Program Files\Jellyfin\Server\jellyfin.exe' } ; exit 0&quot;" ContinueOnError="true" />
+  </Target>
 
 </Project>
